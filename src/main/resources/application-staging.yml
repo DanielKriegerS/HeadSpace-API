@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+  servlet:
+    session:
+      cookie:
+        secure: true
+        same-site: Lax
+headspace:
+  security:
+    allowed-origins: ${ALLOWED_ORIGINS}
+    frontend-base-url: ${FRONTEND_BASE_URL}
+    session-cookie-name: HEADSPACE_SESSION
+    session-cookie-secure: true
+    session-same-site: Lax
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}

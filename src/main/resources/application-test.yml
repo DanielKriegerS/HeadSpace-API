@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/headspace_test
+    username: headspace
+    password: headspace
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-google-client-id
+            client-secret: test-google-client-secret
+headspace:
+  security:
+    allowed-origins: http://localhost:4200
+    frontend-base-url: http://localhost:4200
+    session-cookie-name: HEADSPACE_SESSION
+    session-cookie-secure: false
+    session-same-site: Lax
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
