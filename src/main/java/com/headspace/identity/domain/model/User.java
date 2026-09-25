@@ -14,7 +14,7 @@ public final class User {
     private final Set<RoleName> roles;
     private final Instant createdAt;
     private final Instant updatedAt;
-    private final long version;
+    private final Long version;
 
     private User(
             UUID id,
@@ -27,7 +27,7 @@ public final class User {
             Set<RoleName> roles,
             Instant createdAt,
             Instant updatedAt,
-            long version
+            Long version
     ) {
         this.id = Objects.requireNonNull(id, "User id is required");
         this.provider = Objects.requireNonNull(provider, "Provider is required");
@@ -59,7 +59,7 @@ public final class User {
             normalized = new LinkedHashSet<>(normalized);
             normalized.add(RoleName.ROLE_USER);
         }
-        return new User(id, provider, providerSubject, email, username, profileImageUrl, status, normalized, createdAt, updatedAt, 0L);
+        return new User(id, provider, providerSubject, email, username, profileImageUrl, status, normalized, createdAt, updatedAt, null);
     }
 
     public static User fromPersisted(
@@ -73,7 +73,7 @@ public final class User {
             Set<RoleName> roles,
             Instant createdAt,
             Instant updatedAt,
-            long version
+            Long version
     ) {
         return new User(id, provider, providerSubject, email, username, profileImageUrl, status, roles, createdAt, updatedAt, version);
     }
@@ -162,7 +162,7 @@ public final class User {
         return updatedAt;
     }
 
-    public long getVersion() {
+    public Long getVersion() {
         return version;
     }
 
