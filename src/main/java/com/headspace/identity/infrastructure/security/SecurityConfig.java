@@ -4,13 +4,13 @@ import com.headspace.identity.application.port.AuthenticatedUserProvider;
 import com.headspace.identity.application.usecase.GoogleUserSyncUseCase;
 import com.headspace.identity.domain.model.User;
 import com.headspace.identity.domain.model.UserStatus;
+import com.headspace.shared.error.RestAccessDeniedHandler;
+import com.headspace.shared.error.RestAuthenticationEntryPoint;
 import com.headspace.shared.web.CorrelationIdFilter;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -19,9 +19,11 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -46,23 +48,43 @@ public class SecurityConfig {
     @Value("${headspace.security.csrf-cookie-name:XSRF-TOKEN}")
     private String csrfCookieName;
 
+    @Value("${headspace.security.csrf-header-name:X-XSRF-TOKEN}")
+    private String csrfHeaderName;
+
+    @Bean
+    public CookieCsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repository =
+                CookieCsrfTokenRepository.withHttpOnlyFalse();
+
+        repository.setCookieName(csrfCookieName);
+        repository.setHeaderName(csrfHeaderName);
+        repository.setCookiePath("/");
+        return repository;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             CorrelationIdFilter correlationIdFilter,
-            GoogleUserSyncUseCase googleUserSyncUseCase
-    ) throws Exception {
+            GoogleUserSyncUseCase googleUserSyncUseCase,
+            CookieCsrfTokenRepository csrfTokenRepository,
+            RestAuthenticationEntryPoint authenticationEntryPoint,
+            RestAccessDeniedHandler accessDeniedHandler
+    )  throws Exception {
         http
-            .addFilterBefore(correlationIdFilter, org.springframework.security.web.context.SecurityContextHolderFilter.class)
-            .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
+            .addFilterBefore(correlationIdFilter, SecurityContextHolderFilter.class)
+            .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionFixation().migrateSession().sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/error").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/actuator/info").permitAll()
-                .requestMatchers("/v3/api-docs/**").permitAll()
-                .requestMatchers("/swagger-ui/**").permitAll()
+                .requestMatchers("/error",
+                                            "/actuator/health",
+                                            "/actuator/info",
+                                            "/v3/api-docs/**",
+                                            "/swagger-ui/**",
+                                            "/oauth2/authorization/**",
+                                            "/login/oauth2/code/**",
+                                            "/api/v1/auth/csrf").permitAll()
                 .requestMatchers("/api/v1/me").authenticated()
                 .requestMatchers("/api/v1/auth/logout").authenticated()
                 .anyRequest().denyAll()
@@ -78,22 +100,16 @@ public class SecurityConfig {
                 .invalidateHttpSession(true)
                 .clearAuthentication(true)
                 .deleteCookies(sessionCookieName, csrfCookieName)
-                .permitAll()
             )
-            .exceptionHandling(ex -> ex
-                .authenticationEntryPoint((request, response, authException) -> {
-                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    response.setContentType("application/problem+json");
-                    response.setHeader("X-Correlation-Id", CorrelationIdFilter.resolveCorrelationId((HttpServletRequest) request));
-                    response.getWriter().write("{\"type\":\"https://headspace.app/problems/unauthorized\",\"title\":\"Authentication required\",\"status\":401,\"detail\":\"Authentication is required to access this resource.\",\"instance\":\"" + request.getRequestURI() + "\",\"code\":\"AUTHENTICATION_REQUIRED\",\"timestamp\":\"" + java.time.Instant.now() + "\",\"correlationId\":\"" + org.slf4j.MDC.get("correlationId") + "\"}");
-                })
-                .accessDeniedHandler((request, response, accessDeniedException) -> {
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                    response.setContentType("application/problem+json");
-                    response.setHeader("X-Correlation-Id", CorrelationIdFilter.resolveCorrelationId((HttpServletRequest) request));
-                    response.getWriter().write("{\"type\":\"https://headspace.app/problems/access-denied\",\"title\":\"Access denied\",\"status\":403,\"detail\":\"You do not have permission to access this resource.\",\"instance\":\"" + request.getRequestURI() + "\",\"code\":\"ACCESS_DENIED\",\"timestamp\":\"" + java.time.Instant.now() + "\",\"correlationId\":\"" + org.slf4j.MDC.get("correlationId") + "\"}");
-                })
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint(
+                    authenticationEntryPoint
+                    )
+                    .accessDeniedHandler(
+                        accessDeniedHandler
+                    )
             );
+
         return http.build();
     }
 
@@ -111,7 +127,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public org.springframework.security.oauth2.client.userinfo.OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService(GoogleUserSyncUseCase googleUserSyncUseCase) {
+    public OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService(GoogleUserSyncUseCase googleUserSyncUseCase) {
         OidcUserService delegate = new OidcUserService();
         return userRequest -> {
             OidcUser oidcUser = delegate.loadUser(userRequest);
@@ -122,14 +138,8 @@ public class SecurityConfig {
 
     @Bean
     public LogoutSuccessHandler logoutSuccessHandler() {
-        return (request, response, authentication) -> {
-            response.setStatus(HttpStatus.NO_CONTENT.value());
-            response.addHeader("Set-Cookie", "HEADSPACE_SESSION=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure=false");
-            response.addHeader("Set-Cookie", "XSRF-TOKEN=; Max-Age=0; Path=/; HttpOnly=false; SameSite=Lax");
-            if (request.getSession(false) != null) {
-                request.getSession(false).invalidate();
-            }
-        };
+        return (request, response, authentication) ->
+                response.setStatus(HttpServletResponse.SC_NO_CONTENT);
     }
 
     @Bean
