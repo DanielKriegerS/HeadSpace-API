@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @EnabledIfEnvironmentVariable(named = "DOCKER_HOST", matches = ".*")
-@ContextConfiguration(classes = {HeadSpaceApplication.class, TestcontainersConfiguration.class})
+@ContextConfiguration(classes = {HeadspaceApplication.class, TestcontainersConfiguration.class})
 class HeadSpaceIntegrationTest {
 
     @Autowired
