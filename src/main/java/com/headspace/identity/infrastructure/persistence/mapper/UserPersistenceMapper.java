@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring")
 public class UserPersistenceMapper {
+
     public UserJpaEntity toJpa(User user) {
         UserJpaEntity entity = new UserJpaEntity();
         entity.setId(user.getId());
@@ -22,6 +23,7 @@ public class UserPersistenceMapper {
         entity.setCreatedAt(user.getCreatedAt());
         entity.setUpdatedAt(user.getUpdatedAt());
         entity.setVersion(user.getVersion());
+
         return entity;
     }
 
@@ -42,7 +44,7 @@ public class UserPersistenceMapper {
                 roles,
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
-                entity.getVersion() == null ? 0L : entity.getVersion()
+                entity.getVersion() == null ? null : entity.getVersion()
         );
     }
 }
