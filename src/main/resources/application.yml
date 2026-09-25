@@ -49,6 +49,7 @@ headspace:
   security:
     frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:4200}
+    session-cookie-name: ${HEADSPACE_SESSION_COOKIE_NAME:HEADSPACE_SESSION}
     csrf-cookie-name: ${HEADSPACE_CSRF_COOKIE_NAME:XSRF-TOKEN}
     csrf-header-name: ${HEADSPACE_CSRF_HEADER_NAME:X-XSRF-TOKEN}
 

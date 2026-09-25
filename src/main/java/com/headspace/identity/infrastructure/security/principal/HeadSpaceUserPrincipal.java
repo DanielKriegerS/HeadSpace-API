@@ -1,4 +1,4 @@
-package com.headspace.identity.infrastructure.security;
+package com.headspace.identity.infrastructure.security.principal;
 
 import com.headspace.identity.domain.model.RoleName;
 import com.headspace.identity.domain.model.User;

@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 @Component
-public class RestAccessDeniedHandler
+public class    RestAccessDeniedHandler
         implements AccessDeniedHandler {
 
     private final ObjectMapper objectMapper;
