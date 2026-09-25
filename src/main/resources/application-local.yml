@@ -1,8 +1,8 @@
 spring:
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:headspace}
-    username: ${DB_USER:headspace}
-    password: ${DB_PASSWORD:headspace}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
   security:
     oauth2:
       client:
