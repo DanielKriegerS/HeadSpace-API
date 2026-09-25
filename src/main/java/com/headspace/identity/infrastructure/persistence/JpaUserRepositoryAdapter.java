@@ -17,10 +17,8 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
-import java.util.LinkedHashSet;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Repository
 public class JpaUserRepositoryAdapter implements UserIdentityPort, UserRepository, RoleRepository {
@@ -62,30 +60,16 @@ public class JpaUserRepositoryAdapter implements UserIdentityPort, UserRepositor
     @Override
     @Transactional
     public User save(User user) {
-        UserJpaEntity entity = userRepository.findById(user.getId())
-                .orElseGet(() -> mapper.toJpa(user));
 
-        if (entity.getId() == null) {
-            entity.setId(user.getId());
-        }
-        entity.setProvider(user.getProvider());
-        entity.setProviderSubject(user.getProviderSubject());
-        entity.setUsername(user.getUsername());
-        entity.setEmail(user.getEmail());
-        entity.setProfileImageUrl(user.getProfileImageUrl());
-        entity.setStatus(user.getStatus());
-        entity.setUpdatedAt(user.getUpdatedAt());
-        entity.setCreatedAt(user.getCreatedAt());
+        UserJpaEntity entity = loadOrCreate(user);
 
-        Set<UserRoleJpaEntity> currentRoles = new LinkedHashSet<>();
-        for (RoleName roleName : user.getRoles()) {
-            RoleJpaEntity roleEntity = roleRepository.findByName(roleName)
-                    .orElseThrow(() -> new IllegalStateException("Role not found: " + roleName));
-            UserRoleJpaEntity userRole = new UserRoleJpaEntity(entity, roleEntity, Instant.now(), null);
-            currentRoles.add(userRole);
-        }
-        entity.setUserRoles(currentRoles);
-        UserJpaEntity saved = userRepository.saveAndFlush(entity);
+        updateBasicFields(entity, user);
+
+        synchronizeRoles(entity, user.getRoles());
+
+        UserJpaEntity saved =
+                userRepository.saveAndFlush(entity);
+
         return mapper.toDomain(saved);
     }
 
@@ -97,5 +81,88 @@ public class JpaUserRepositoryAdapter implements UserIdentityPort, UserRepositor
     @Override
     public Optional<Role> findByName(RoleName name) {
         return findRoleByName(name);
+    }
+
+    private UserJpaEntity loadOrCreate(User user) {
+        return userRepository.findById(user.getId())
+                .orElseGet(() -> mapper.toJpa(user));
+    }
+
+    private void updateBasicFields(
+            UserJpaEntity entity,
+            User user) {
+
+        if (entity.getId() == null) {
+            entity.setId(user.getId());
+        }
+
+        entity.setProvider(user.getProvider());
+        entity.setProviderSubject(user.getProviderSubject());
+        entity.setUsername(user.getUsername());
+        entity.setEmail(user.getEmail());
+        entity.setProfileImageUrl(user.getProfileImageUrl());
+        entity.setStatus(user.getStatus());
+        entity.setCreatedAt(user.getCreatedAt());
+        entity.setUpdatedAt(user.getUpdatedAt());
+    }
+
+    private void synchronizeRoles(
+            UserJpaEntity entity,
+            Set<RoleName> desiredRoles) {
+
+        Set<RoleName> currentRoles = entity.getUserRoles()
+                .stream()
+                .map(userRole -> userRole.getRole().getName())
+                .collect(Collectors.toSet());
+
+        if (currentRoles.equals(desiredRoles)) {
+            return;
+        }
+
+        removeUnusedRoles(entity, desiredRoles);
+
+        addMissingRoles(entity, desiredRoles);
+    }
+
+    private void removeUnusedRoles(
+            UserJpaEntity entity,
+            Set<RoleName> desiredRoles) {
+
+        entity.getUserRoles().removeIf(userRole ->
+                !desiredRoles.contains(
+                        userRole.getRole().getName()
+                )
+        );
+    }
+
+    private void addMissingRoles(
+            UserJpaEntity entity,
+            Set<RoleName> desiredRoles) {
+
+        for (RoleName roleName : desiredRoles) {
+
+            boolean alreadyExists = entity.getUserRoles()
+                    .stream()
+                    .anyMatch(userRole ->
+                            userRole.getRole().getName() == roleName);
+
+            if (alreadyExists) {
+                continue;
+            }
+
+            RoleJpaEntity roleEntity = roleRepository.findByName(roleName)
+                    .orElseThrow(() ->
+                            new IllegalStateException(
+                                    "Role not found: " + roleName));
+
+            entity.getUserRoles().add(
+                    new UserRoleJpaEntity(
+                            entity,
+                            roleEntity,
+                            Instant.now(),
+                            null
+                    )
+            );
+        }
     }
 }
